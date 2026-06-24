@@ -14,6 +14,19 @@ interface LocationPhoto {
   created_at: string
 }
 
+interface SpecialLocation {
+  id: string
+  name: string
+  lat: number
+  lng: number
+  effect: 'sparkle' | 'aura'
+}
+
+const SPECIAL_LOCATIONS: SpecialLocation[] = [
+  { id: 'yamabushi', name: '山伏公園', lat: 35.7081, lng: 139.7727, effect: 'sparkle' },
+  { id: 'okachimachi', name: '御徒町台東中学校', lat: 35.7089, lng: 139.7751, effect: 'aura' },
+]
+
 interface MapViewProps {
   activities: Activity[]
   userLat: number | null
@@ -29,27 +42,29 @@ export default function MapView({ activities, userLat, userLng, currentUserId, o
   const mapInstanceRef = useRef<any>(null)
   const markersRef = useRef<Map<string, any>>(new Map())
   const userMarkerRef = useRef<any>(null)
-  const photoMarkersRef = useRef<Map<string, any>>(new Map())
-  const [photos, setPhotos] = useState<LocationPhoto[]>([])
-  const [selectedPhoto, setSelectedPhoto] = useState<LocationPhoto | null>(null)
+  const specialMarkersRef = useRef<Map<string, any>>(new Map())
+  const [photos, setPhotos] = useState<Record<string, LocationPhoto[]>>({})
+  const [selectedLocation, setSelectedLocation] = useState<SpecialLocation | null>(null)
   const [uploading, setUploading] = useState(false)
-  const [showUploadModal, setShowUploadModal] = useState(false)
-  const [uploadLat, setUploadLat] = useState<number | null>(null)
-  const [uploadLng, setUploadLng] = useState<number | null>(null)
-  const [locationName, setLocationName] = useState('')
+  const [showUploadForLocation, setShowUploadForLocation] = useState<string | null>(null)
 
-  // 写真を取得
   useEffect(() => {
     fetchPhotos()
   }, [])
 
   const fetchPhotos = async () => {
     const { data } = await supabase.from('location_photos').select('*')
-    if (data) setPhotos(data as LocationPhoto[])
+    if (data) {
+      const grouped: Record<string, LocationPhoto[]> = {}
+      data.forEach((photo: LocationPhoto) => {
+        if (!grouped[photo.location_name]) grouped[photo.location_name] = []
+        grouped[photo.location_name].push(photo)
+      })
+      setPhotos(grouped)
+    }
   }
 
-  // 今日すでに投稿したか確認
-  const checkTodayUpload = async () => {
+  const checkTodayUpload = async (locationName: string) => {
     if (!currentUserId) return false
     const today = new Date()
     today.setHours(0, 0, 0, 0)
@@ -57,18 +72,18 @@ export default function MapView({ activities, userLat, userLng, currentUserId, o
       .from('location_photos')
       .select('id')
       .eq('user_id', currentUserId)
+      .eq('location_name', locationName)
       .gte('created_at', today.toISOString())
     return data && data.length > 0
   }
 
-  // 写真アップロード
-  const handleUpload = async (file: File) => {
-    if (!currentUserId || !uploadLat || !uploadLng) return
+  const handleUpload = async (file: File, location: SpecialLocation) => {
+    if (!currentUserId) return
     setUploading(true)
 
-    const alreadyUploaded = await checkTodayUpload()
+    const alreadyUploaded = await checkTodayUpload(location.name)
     if (alreadyUploaded) {
-      alert('1日1枚までです。明日また投稿できます！')
+      alert('この場所には今日すでに投稿しています。明日また投稿できます！')
       setUploading(false)
       return
     }
@@ -89,15 +104,14 @@ export default function MapView({ activities, userLat, userLng, currentUserId, o
 
     await supabase.from('location_photos').insert({
       user_id: currentUserId,
-      lat: uploadLat,
-      lng: uploadLng,
+      lat: location.lat,
+      lng: location.lng,
       photo_url: urlData.publicUrl,
-      location_name: locationName,
+      location_name: location.name,
     })
 
     setUploading(false)
-    setShowUploadModal(false)
-    setLocationName('')
+    setShowUploadForLocation(null)
     fetchPhotos()
   }
 
@@ -123,7 +137,6 @@ export default function MapView({ activities, userLat, userLng, currentUserId, o
         zoomControl: false,
       })
 
-      // CartoDB Light
       L.tileLayer(
         'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
         {
@@ -219,119 +232,161 @@ export default function MapView({ activities, userLat, userLng, currentUserId, o
     })
   }, [activities, currentUserId, onActivityClick])
 
-  // 写真マーカーを地図に表示
+  // 特別な場所のマーカーを表示
   useEffect(() => {
     if (!mapInstanceRef.current) return
     import('leaflet').then((L) => {
       const map = mapInstanceRef.current
 
-      photoMarkersRef.current.forEach((marker) => map.removeLayer(marker))
-      photoMarkersRef.current.clear()
+      SPECIAL_LOCATIONS.forEach((loc) => {
+        if (specialMarkersRef.current.has(loc.id)) return
 
-      photos.forEach((photo) => {
+        const locationPhotos = photos[loc.name] || []
+        const latestPhoto = locationPhotos[locationPhotos.length - 1]
+
+        const photoHtml = latestPhoto
+          ? `<img src="${latestPhoto.photo_url}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" />`
+          : `<div style="width:100%;height:100%;background:${loc.effect === 'sparkle' ? '#f59e0b' : '#8b5cf6'};border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:24px;">${loc.effect === 'sparkle' ? '🌟' : '✨'}</div>`
+
+        const sparkleHtml = loc.effect === 'sparkle' ? `
+          <div style="position:absolute;inset:-20px;pointer-events:none;">
+            <div style="position:absolute;top:0;left:50%;width:4px;height:4px;background:#fbbf24;border-radius:50%;animation:sparkle1 1.5s infinite;"></div>
+            <div style="position:absolute;top:20%;right:0;width:3px;height:3px;background:#fcd34d;border-radius:50%;animation:sparkle2 1.8s infinite;"></div>
+            <div style="position:absolute;bottom:0;left:30%;width:5px;height:5px;background:#f59e0b;border-radius:50%;animation:sparkle3 1.2s infinite;"></div>
+            <div style="position:absolute;top:40%;left:0;width:3px;height:3px;background:#fbbf24;border-radius:50%;animation:sparkle4 2s infinite;"></div>
+            <div style="position:absolute;bottom:20%;right:10%;width:4px;height:4px;background:#fcd34d;border-radius:50%;animation:sparkle1 1.6s infinite 0.3s;"></div>
+            <div style="position:absolute;top:10%;left:20%;width:6px;height:6px;background:#f59e0b;border-radius:50%;animation:sparkle2 1.4s infinite 0.5s;"></div>
+          </div>
+        ` : ''
+
+        const auraHtml = loc.effect === 'aura' ? `
+          <div style="position:absolute;inset:-15px;border-radius:50%;border:2px solid rgba(139,92,246,0.6);animation:aura1 2s infinite;pointer-events:none;"></div>
+          <div style="position:absolute;inset:-28px;border-radius:50%;border:2px solid rgba(139,92,246,0.4);animation:aura2 2s infinite 0.5s;pointer-events:none;"></div>
+          <div style="position:absolute;inset:-41px;border-radius:50%;border:2px solid rgba(139,92,246,0.2);animation:aura3 2s infinite 1s;pointer-events:none;"></div>
+        ` : ''
+
         const icon = L.divIcon({
-          html: `<div style="width:44px;height:44px;border-radius:50%;border:3px solid white;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.3);cursor:pointer;"><img src="${photo.photo_url}" style="width:100%;height:100%;object-fit:cover;"/></div>`,
+          html: `
+            <div style="position:relative;display:flex;align-items:center;justify-content:center;width:60px;height:60px;">
+              ${sparkleHtml}
+              ${auraHtml}
+              <div style="width:56px;height:56px;border-radius:50%;overflow:hidden;border:3px solid ${loc.effect === 'sparkle' ? '#fbbf24' : '#8b5cf6'};box-shadow:0 0 16px ${loc.effect === 'sparkle' ? 'rgba(251,191,36,0.8)' : 'rgba(139,92,246,0.8)'};cursor:pointer;position:relative;z-index:2;">
+                ${photoHtml}
+              </div>
+              <div style="position:absolute;bottom:-20px;left:50%;transform:translateX(-50%);background:${loc.effect === 'sparkle' ? '#fbbf24' : '#8b5cf6'};color:white;font-size:9px;font-weight:700;padding:2px 6px;border-radius:8px;white-space:nowrap;">${loc.name}</div>
+            </div>
+            <style>
+              @keyframes sparkle1{0%,100%{transform:translate(0,0) scale(1);opacity:1}50%{transform:translate(-8px,-12px) scale(1.5);opacity:0.3}}
+              @keyframes sparkle2{0%,100%{transform:translate(0,0) scale(1);opacity:0.8}50%{transform:translate(10px,-8px) scale(2);opacity:0.2}}
+              @keyframes sparkle3{0%,100%{transform:translate(0,0) scale(1);opacity:1}50%{transform:translate(-5px,10px) scale(1.8);opacity:0.1}}
+              @keyframes sparkle4{0%,100%{transform:translate(0,0) scale(1);opacity:0.9}50%{transform:translate(8px,6px) scale(1.3);opacity:0.4}}
+              @keyframes aura1{0%{transform:scale(1);opacity:0.8}100%{transform:scale(1.5);opacity:0}}
+              @keyframes aura2{0%{transform:scale(1);opacity:0.6}100%{transform:scale(1.5);opacity:0}}
+              @keyframes aura3{0%{transform:scale(1);opacity:0.4}100%{transform:scale(1.5);opacity:0}}
+            </style>
+          `,
           className: '',
-          iconSize: [44, 44],
-          iconAnchor: [22, 22],
+          iconSize: [60, 80],
+          iconAnchor: [30, 40],
         })
 
-        const marker = L.marker([photo.lat, photo.lng], { icon })
+        const marker = L.marker([loc.lat, loc.lng], { icon })
           .addTo(map)
-          .on('click', () => setSelectedPhoto(photo))
+          .on('click', () => setSelectedLocation(loc))
 
-        photoMarkersRef.current.set(photo.id, marker)
+        specialMarkersRef.current.set(loc.id, marker)
       })
     })
-  }, [photos, mapInstanceRef.current])
+  }, [mapInstanceRef.current, photos])
 
   return (
     <>
       <div ref={mapRef} className="absolute inset-0 w-full h-full" />
 
-      {/* 写真投稿ボタン */}
-      {currentUserId && userLat && userLng && (
-        <button
-          onClick={() => {
-            setUploadLat(userLat)
-            setUploadLng(userLng)
-            setShowUploadModal(true)
-          }}
-          style={{
-            position: 'absolute', bottom: 100, right: 16, zIndex: 1000,
-            background: 'white', border: 'none', borderRadius: '50%',
-            width: 48, height: 48, fontSize: 22, cursor: 'pointer',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
-          }}
-        >
-          📷
-        </button>
-      )}
-
-      {/* 写真投稿モーダル */}
-      {showUploadModal && (
+      {/* 特別な場所のパネル */}
+      {selectedLocation && (
         <div style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)',
           zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          <div style={{
-            background: 'white', borderRadius: 16, padding: 24, width: 320,
-          }}>
-            <h3 style={{ margin: '0 0 16px', fontSize: 18, fontWeight: 700 }}>📷 写真を投稿</h3>
-            <p style={{ fontSize: 13, color: '#666', margin: '0 0 12px' }}>1日1枚まで投稿できます</p>
-            <input
-              type="text"
-              placeholder="場所の名前（例：山伏公園）"
-              value={locationName}
-              onChange={(e) => setLocationName(e.target.value)}
-              style={{
-                width: '100%', padding: '8px 12px', borderRadius: 8,
-                border: '1px solid #ddd', marginBottom: 12, fontSize: 14,
-                boxSizing: 'border-box',
-              }}
-            />
-            <input
-              type="file"
-              accept="image/*"
-              onChange={(e) => {
-                const file = e.target.files?.[0]
-                if (file) handleUpload(file)
-              }}
-              style={{ marginBottom: 12, width: '100%' }}
-            />
-            {uploading && <p style={{ color: '#3b82f6', fontSize: 13 }}>アップロード中...</p>}
-            <button
-              onClick={() => setShowUploadModal(false)}
-              style={{
-                width: '100%', padding: '10px', borderRadius: 8,
-                border: '1px solid #ddd', background: 'white', cursor: 'pointer',
-              }}
-            >
-              キャンセル
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* 写真表示モーダル */}
-      {selectedPhoto && (
-        <div
-          style={{
-            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)',
-            zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}
-          onClick={() => setSelectedPhoto(null)}
+        }}
+          onClick={() => { setSelectedLocation(null); setShowUploadForLocation(null) }}
         >
-          <div style={{ background: 'white', borderRadius: 16, overflow: 'hidden', maxWidth: 340 }}
-            onClick={(e) => e.stopPropagation()}>
-            <img src={selectedPhoto.photo_url} style={{ width: '100%', display: 'block' }} />
-            {selectedPhoto.location_name && (
-              <div style={{ padding: '12px 16px', fontWeight: 600 }}>
-                📍 {selectedPhoto.location_name}
+          <div style={{
+            background: 'white', borderRadius: 20, overflow: 'hidden', width: 340, maxHeight: '80vh',
+          }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{
+              padding: '16px 20px',
+              background: selectedLocation.effect === 'sparkle'
+                ? 'linear-gradient(135deg, #fbbf24, #f59e0b)'
+                : 'linear-gradient(135deg, #8b5cf6, #6d28d9)',
+              color: 'white',
+            }}>
+              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>
+                {selectedLocation.effect === 'sparkle' ? '🌟' : '✨'} {selectedLocation.name}
+              </h3>
+            </div>
+
+            {/* 写真一覧 */}
+            <div style={{ padding: 16, overflowY: 'auto', maxHeight: 300 }}>
+              {(photos[selectedLocation.name] || []).length === 0 ? (
+                <p style={{ color: '#999', textAlign: 'center', fontSize: 14 }}>まだ写真がありません</p>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  {(photos[selectedLocation.name] || []).map((photo) => (
+                    <img
+                      key={photo.id}
+                      src={photo.photo_url}
+                      style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: 8 }}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* アップロードボタン */}
+            {currentUserId && (
+              <div style={{ padding: '0 16px 16px' }}>
+                {showUploadForLocation === selectedLocation.id ? (
+                  <div>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (file) handleUpload(file, selectedLocation)
+                      }}
+                      style={{ width: '100%', marginBottom: 8 }}
+                    />
+                    {uploading && <p style={{ color: '#3b82f6', fontSize: 13 }}>アップロード中...</p>}
+                    <button
+                      onClick={() => setShowUploadForLocation(null)}
+                      style={{
+                        width: '100%', padding: 10, borderRadius: 8,
+                        border: '1px solid #ddd', background: 'white', cursor: 'pointer',
+                      }}
+                    >
+                      キャンセル
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setShowUploadForLocation(selectedLocation.id)}
+                    style={{
+                      width: '100%', padding: 12, borderRadius: 10, border: 'none',
+                      background: selectedLocation.effect === 'sparkle' ? '#fbbf24' : '#8b5cf6',
+                      color: 'white', fontWeight: 700, cursor: 'pointer', fontSize: 15,
+                    }}
+                  >
+                    📷 写真を投稿する（1日1枚）
+                  </button>
+                )}
               </div>
             )}
+
             <button
-              onClick={() => setSelectedPhoto(null)}
+              onClick={() => { setSelectedLocation(null); setShowUploadForLocation(null) }}
               style={{
                 width: '100%', padding: 12, border: 'none',
                 background: '#f3f4f6', cursor: 'pointer', fontSize: 14,
