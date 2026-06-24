@@ -23,8 +23,8 @@ interface SpecialLocation {
 }
 
 const SPECIAL_LOCATIONS: SpecialLocation[] = [
-  { id: 'yamabushi', name: '山伏公園', lat: 35.7081, lng: 139.7727, effect: 'sparkle' },
-  { id: 'okachimachi', name: '御徒町台東中学校', lat: 35.7089, lng: 139.7751, effect: 'aura' },
+  { id: 'yamabushi', name: '山伏公園', lat: 35.716568, lng: 139.783532, effect: 'sparkle' },
+  { id: 'okachimachi', name: '御徒町台東中学校', lat: 35.70694, lng: 139.777461, effect: 'aura' },
 ]
 
 interface MapViewProps {
@@ -138,7 +138,7 @@ export default function MapView({ activities, userLat, userLng, currentUserId, o
       })
 
       L.tileLayer(
-        'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
         {
           attribution: '&copy; OpenStreetMap &copy; CartoDB',
           maxZoom: 20,
