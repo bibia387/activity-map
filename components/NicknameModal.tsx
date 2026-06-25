@@ -24,6 +24,19 @@ export default function NicknameModal({ userId, onComplete }: NicknameModalProps
     }
 
     setSaving(true)
+
+    const { data: existing } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('nickname', nickname.trim())
+      .maybeSingle()
+
+    if (existing) {
+      setError('このニックネームはすでに使われています')
+      setSaving(false)
+      return
+    }
+
     const { error: updateError } = await supabase
       .from('profiles')
       .update({ nickname: nickname.trim() })
@@ -86,7 +99,7 @@ export default function NicknameModal({ userId, onComplete }: NicknameModalProps
             color: 'white', fontWeight: 700, fontSize: 16, cursor: saving ? 'not-allowed' : 'pointer',
           }}
         >
-          {saving ? '保存中...' : 'はじめる →'}
+          {saving ? '確認中...' : 'はじめる →'}
         </button>
       </div>
     </div>
