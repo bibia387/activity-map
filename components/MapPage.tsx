@@ -8,6 +8,7 @@ import dynamic from 'next/dynamic'
 import StartActivityModal from './StartActivityModal'
 import ActivityPanel from './ActivityPanel'
 import NavBar from './NavBar'
+import NicknameModal from './NicknameModal'
 
 const MapView = dynamic(() => import('./MapView'), { ssr: false })
 
@@ -21,6 +22,7 @@ export default function MapPage() {
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null)
   const [myActivity, setMyActivity] = useState<Activity | null>(null)
   const [zoomTarget, setZoomTarget] = useState<{ lat: number; lng: number } | null>(null)
+  const [needsNickname, setNeedsNickname] = useState(false)
 
   const getLocation = useCallback(() => {
     if (!navigator.geolocation) {
@@ -38,6 +40,21 @@ export default function MapPage() {
   }, [])
 
   useEffect(() => { getLocation() }, [getLocation])
+
+  useEffect(() => {
+    if (!user) return
+    const checkNickname = async () => {
+      const { data } = await supabase
+        .from('profiles')
+        .select('nickname')
+        .eq('id', user.id)
+        .single()
+      if (!data?.nickname) {
+        setNeedsNickname(true)
+      }
+    }
+    checkNickname()
+  }, [user])
 
   const fetchActivities = useCallback(async () => {
     const now = new Date().toISOString()
@@ -72,6 +89,14 @@ export default function MapPage() {
 
   return (
     <div style={{ width: '100vw', height: '100vh', position: 'relative', overflow: 'hidden' }}>
+
+      {needsNickname && user && (
+        <NicknameModal
+          userId={user.id}
+          onComplete={() => setNeedsNickname(false)}
+        />
+      )}
+
       <div style={{ position: 'absolute', inset: 0, zIndex: 1 }}>
         <MapView
           activities={activities}
@@ -147,7 +172,7 @@ export default function MapPage() {
               whiteSpace: 'nowrap',
             }}
           >
-            ＋ {myActivity ? '活動を変更する' : '活動を開始する'}
+            + {myActivity ? '活動を変更する' : '活動を開始する'}
           </button>
         </div>
 
