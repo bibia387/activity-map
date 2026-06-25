@@ -19,12 +19,13 @@ interface SpecialLocation {
   name: string
   lat: number
   lng: number
-  effect: 'sparkle' | 'aura'
+  effect: 'sparkle' | 'aura' | 'study'
 }
 
 const SPECIAL_LOCATIONS: SpecialLocation[] = [
   { id: 'yamabushi', name: '山伏公園', lat: 35.716568, lng: 139.783532, effect: 'sparkle' },
   { id: 'okachimachi', name: '御徒町台東中学校', lat: 35.70694, lng: 139.777461, effect: 'aura' },
+  { id: 'takeda', name: '武田塾上野校', lat: 35.70990062686092, lng: 139.776864054784, effect: 'study' },
 ]
 
 interface MapViewProps {
@@ -232,7 +233,6 @@ export default function MapView({ activities, userLat, userLng, currentUserId, o
     })
   }, [activities, currentUserId, onActivityClick])
 
-  // 特別な場所のマーカーを表示
   useEffect(() => {
     if (!mapInstanceRef.current) return
     import('leaflet').then((L) => {
@@ -246,7 +246,7 @@ export default function MapView({ activities, userLat, userLng, currentUserId, o
 
         const photoHtml = latestPhoto
           ? `<img src="${latestPhoto.photo_url}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" />`
-          : `<div style="width:100%;height:100%;background:${loc.effect === 'sparkle' ? '#f59e0b' : '#8b5cf6'};border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:24px;">${loc.effect === 'sparkle' ? '🌟' : '✨'}</div>`
+          : `<div style="width:100%;height:100%;background:${loc.effect === 'sparkle' ? '#f59e0b' : loc.effect === 'aura' ? '#8b5cf6' : '#10b981'};border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:24px;">${loc.effect === 'sparkle' ? '🌟' : loc.effect === 'aura' ? '✨' : '📚'}</div>`
 
         const sparkleHtml = loc.effect === 'sparkle' ? `
           <div style="position:absolute;inset:-20px;pointer-events:none;">
@@ -265,15 +265,27 @@ export default function MapView({ activities, userLat, userLng, currentUserId, o
           <div style="position:absolute;inset:-41px;border-radius:50%;border:2px solid rgba(139,92,246,0.2);animation:aura3 2s infinite 1s;pointer-events:none;"></div>
         ` : ''
 
+        const studyHtml = loc.effect === 'study' ? `
+          <div style="position:absolute;inset:-20px;pointer-events:none;">
+            <div style="position:absolute;top:50%;left:50%;font-size:14px;animation:orbit1 4s linear infinite;transform-origin:0 0;">📚</div>
+            <div style="position:absolute;top:50%;left:50%;font-size:12px;animation:orbit2 4s linear infinite 1.3s;transform-origin:0 0;">✏️</div>
+            <div style="position:absolute;top:50%;left:50%;font-size:12px;animation:orbit3 4s linear infinite 2.6s;transform-origin:0 0;">💡</div>
+          </div>
+        ` : ''
+
+        const borderColor = loc.effect === 'sparkle' ? '#fbbf24' : loc.effect === 'aura' ? '#8b5cf6' : '#10b981'
+        const glowColor = loc.effect === 'sparkle' ? 'rgba(251,191,36,0.8)' : loc.effect === 'aura' ? 'rgba(139,92,246,0.8)' : 'rgba(16,185,129,0.8)'
+
         const icon = L.divIcon({
           html: `
             <div style="position:relative;display:flex;align-items:center;justify-content:center;width:60px;height:60px;">
               ${sparkleHtml}
               ${auraHtml}
-              <div style="width:56px;height:56px;border-radius:50%;overflow:hidden;border:3px solid ${loc.effect === 'sparkle' ? '#fbbf24' : '#8b5cf6'};box-shadow:0 0 16px ${loc.effect === 'sparkle' ? 'rgba(251,191,36,0.8)' : 'rgba(139,92,246,0.8)'};cursor:pointer;position:relative;z-index:2;">
+              ${studyHtml}
+              <div style="width:56px;height:56px;border-radius:50%;overflow:hidden;border:3px solid ${borderColor};box-shadow:0 0 16px ${glowColor};cursor:pointer;position:relative;z-index:2;">
                 ${photoHtml}
               </div>
-              <div style="position:absolute;bottom:-20px;left:50%;transform:translateX(-50%);background:${loc.effect === 'sparkle' ? '#fbbf24' : '#8b5cf6'};color:white;font-size:9px;font-weight:700;padding:2px 6px;border-radius:8px;white-space:nowrap;">${loc.name}</div>
+              <div style="position:absolute;bottom:-20px;left:50%;transform:translateX(-50%);background:${borderColor};color:white;font-size:9px;font-weight:700;padding:2px 6px;border-radius:8px;white-space:nowrap;">${loc.name}</div>
             </div>
             <style>
               @keyframes sparkle1{0%,100%{transform:translate(0,0) scale(1);opacity:1}50%{transform:translate(-8px,-12px) scale(1.5);opacity:0.3}}
@@ -283,6 +295,9 @@ export default function MapView({ activities, userLat, userLng, currentUserId, o
               @keyframes aura1{0%{transform:scale(1);opacity:0.8}100%{transform:scale(1.5);opacity:0}}
               @keyframes aura2{0%{transform:scale(1);opacity:0.6}100%{transform:scale(1.5);opacity:0}}
               @keyframes aura3{0%{transform:scale(1);opacity:0.4}100%{transform:scale(1.5);opacity:0}}
+              @keyframes orbit1{0%{transform:rotate(0deg) translateX(35px) rotate(0deg)}100%{transform:rotate(360deg) translateX(35px) rotate(-360deg)}}
+              @keyframes orbit2{0%{transform:rotate(120deg) translateX(35px) rotate(-120deg)}100%{transform:rotate(480deg) translateX(35px) rotate(-480deg)}}
+              @keyframes orbit3{0%{transform:rotate(240deg) translateX(35px) rotate(-240deg)}100%{transform:rotate(600deg) translateX(35px) rotate(-600deg)}}
             </style>
           `,
           className: '',
@@ -303,7 +318,6 @@ export default function MapView({ activities, userLat, userLng, currentUserId, o
     <>
       <div ref={mapRef} className="absolute inset-0 w-full h-full" />
 
-      {/* 特別な場所のパネル */}
       {selectedLocation && (
         <div style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)',
@@ -320,15 +334,16 @@ export default function MapView({ activities, userLat, userLng, currentUserId, o
               padding: '16px 20px',
               background: selectedLocation.effect === 'sparkle'
                 ? 'linear-gradient(135deg, #fbbf24, #f59e0b)'
-                : 'linear-gradient(135deg, #8b5cf6, #6d28d9)',
+                : selectedLocation.effect === 'aura'
+                ? 'linear-gradient(135deg, #8b5cf6, #6d28d9)'
+                : 'linear-gradient(135deg, #10b981, #059669)',
               color: 'white',
             }}>
               <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>
-                {selectedLocation.effect === 'sparkle' ? '🌟' : '✨'} {selectedLocation.name}
+                {selectedLocation.effect === 'sparkle' ? '🌟' : selectedLocation.effect === 'aura' ? '✨' : '📚'} {selectedLocation.name}
               </h3>
             </div>
 
-            {/* 写真一覧 */}
             <div style={{ padding: 16, overflowY: 'auto', maxHeight: 300 }}>
               {(photos[selectedLocation.name] || []).length === 0 ? (
                 <p style={{ color: '#999', textAlign: 'center', fontSize: 14 }}>まだ写真がありません</p>
@@ -345,7 +360,6 @@ export default function MapView({ activities, userLat, userLng, currentUserId, o
               )}
             </div>
 
-            {/* アップロードボタン */}
             {currentUserId && (
               <div style={{ padding: '0 16px 16px' }}>
                 {showUploadForLocation === selectedLocation.id ? (
@@ -375,7 +389,7 @@ export default function MapView({ activities, userLat, userLng, currentUserId, o
                     onClick={() => setShowUploadForLocation(selectedLocation.id)}
                     style={{
                       width: '100%', padding: 12, borderRadius: 10, border: 'none',
-                      background: selectedLocation.effect === 'sparkle' ? '#fbbf24' : '#8b5cf6',
+                      background: selectedLocation.effect === 'sparkle' ? '#fbbf24' : selectedLocation.effect === 'aura' ? '#8b5cf6' : '#10b981',
                       color: 'white', fontWeight: 700, cursor: 'pointer', fontSize: 15,
                     }}
                   >
