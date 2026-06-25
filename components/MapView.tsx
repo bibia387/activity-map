@@ -366,7 +366,7 @@ export default function MapView({ activities, userLat, userLng, currentUserId, o
                   <div>
                     <input
                       type="file"
-                      accept="image/*"
+                      accept="image/*" capture="environment"
                       onChange={(e) => {
                         const file = e.target.files?.[0]
                         if (file) handleUpload(file, selectedLocation)
