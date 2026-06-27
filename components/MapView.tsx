@@ -12,6 +12,7 @@ interface LocationPhoto {
   photo_url: string
   location_name: string
   created_at: string
+  profiles?: { nickname: string }
 }
 
 interface SpecialLocation {
@@ -19,13 +20,16 @@ interface SpecialLocation {
   name: string
   lat: number
   lng: number
-  effect: 'sparkle' | 'aura' | 'study'
+  effect: 'sparkle' | 'aura' | 'study' | 'basketball' | 'baseball' | 'sakura_basketball'
 }
 
 const SPECIAL_LOCATIONS: SpecialLocation[] = [
   { id: 'yamabushi', name: '山伏公園', lat: 35.716568, lng: 139.783532, effect: 'sparkle' },
   { id: 'okachimachi', name: '御徒町台東中学校', lat: 35.70694, lng: 139.777461, effect: 'aura' },
   { id: 'takeda', name: '武田塾上野校', lat: 35.70990062686092, lng: 139.776864054784, effect: 'study' },
+  { id: 'komatsu', name: '小松川高校', lat: 35.702528, lng: 139.851806, effect: 'basketball' },
+  { id: 'ueno', name: '上野高校', lat: 35.718556, lng: 139.769972, effect: 'sakura_basketball' },
+  { id: 'keio', name: '慶應義塾高校', lat: 35.551433, lng: 139.649639, effect: 'baseball' },
 ]
 
 interface MapViewProps {
@@ -54,7 +58,9 @@ export default function MapView({ activities, userLat, userLng, currentUserId, o
   }, [])
 
   const fetchPhotos = async () => {
-    const { data } = await supabase.from('location_photos').select('*')
+    const { data } = await supabase
+      .from('location_photos')
+      .select('*, profiles(nickname)')
     if (data) {
       const grouped: Record<string, LocationPhoto[]> = {}
       data.forEach((photo: LocationPhoto) => {
@@ -114,6 +120,85 @@ export default function MapView({ activities, userLat, userLng, currentUserId, o
     setUploading(false)
     setShowUploadForLocation(null)
     fetchPhotos()
+  }
+
+  const getEffectColor = (effect: string) => {
+    switch (effect) {
+      case 'sparkle': return '#fbbf24'
+      case 'aura': return '#8b5cf6'
+      case 'study': return '#10b981'
+      case 'basketball': return '#f97316'
+      case 'sakura_basketball': return '#f472b6'
+      case 'baseball': return '#1e3a8a'
+      default: return '#6b7280'
+    }
+  }
+
+  const getEffectEmoji = (effect: string) => {
+    switch (effect) {
+      case 'sparkle': return '🌟'
+      case 'aura': return '✨'
+      case 'study': return '📚'
+      case 'basketball': return '🏀'
+      case 'sakura_basketball': return '🌸'
+      case 'baseball': return '⚾'
+      default: return '📍'
+    }
+  }
+
+  const getOrbitHtml = (effect: string) => {
+    if (effect === 'basketball') {
+      return `
+        <div style="position:absolute;inset:-20px;pointer-events:none;">
+          <div style="position:absolute;top:50%;left:50%;font-size:16px;animation:orbit1 3s linear infinite;transform-origin:0 0;">🏀</div>
+          <div style="position:absolute;top:50%;left:50%;font-size:14px;animation:orbit2 3s linear infinite 1.5s;transform-origin:0 0;">🏀</div>
+        </div>
+      `
+    }
+    if (effect === 'sakura_basketball') {
+      return `
+        <div style="position:absolute;inset:-20px;pointer-events:none;">
+          <div style="position:absolute;top:50%;left:50%;font-size:16px;animation:orbit1 3s linear infinite;transform-origin:0 0;">🏀</div>
+          <div style="position:absolute;top:50%;left:50%;font-size:14px;animation:orbit2 3s linear infinite 1s;transform-origin:0 0;">🌸</div>
+          <div style="position:absolute;top:50%;left:50%;font-size:12px;animation:orbit3 3s linear infinite 2s;transform-origin:0 0;">🌸</div>
+        </div>
+      `
+    }
+    if (effect === 'baseball') {
+      return `
+        <div style="position:absolute;inset:-20px;pointer-events:none;">
+          <div style="position:absolute;top:50%;left:50%;font-size:16px;animation:orbit1 3s linear infinite;transform-origin:0 0;">⚾</div>
+          <div style="position:absolute;top:50%;left:50%;font-size:14px;animation:orbit2 3s linear infinite 1.5s;transform-origin:0 0;">🏏</div>
+        </div>
+      `
+    }
+    if (effect === 'study') {
+      return `
+        <div style="position:absolute;inset:-20px;pointer-events:none;">
+          <div style="position:absolute;top:50%;left:50%;font-size:14px;animation:orbit1 4s linear infinite;transform-origin:0 0;">📚</div>
+          <div style="position:absolute;top:50%;left:50%;font-size:12px;animation:orbit2 4s linear infinite 1.3s;transform-origin:0 0;">✏️</div>
+          <div style="position:absolute;top:50%;left:50%;font-size:12px;animation:orbit3 4s linear infinite 2.6s;transform-origin:0 0;">💡</div>
+        </div>
+      `
+    }
+    if (effect === 'sparkle') {
+      return `
+        <div style="position:absolute;inset:-20px;pointer-events:none;">
+          <div style="position:absolute;top:0;left:50%;width:4px;height:4px;background:#fbbf24;border-radius:50%;animation:sparkle1 1.5s infinite;"></div>
+          <div style="position:absolute;top:20%;right:0;width:3px;height:3px;background:#fcd34d;border-radius:50%;animation:sparkle2 1.8s infinite;"></div>
+          <div style="position:absolute;bottom:0;left:30%;width:5px;height:5px;background:#f59e0b;border-radius:50%;animation:sparkle3 1.2s infinite;"></div>
+          <div style="position:absolute;top:40%;left:0;width:3px;height:3px;background:#fbbf24;border-radius:50%;animation:sparkle4 2s infinite;"></div>
+        </div>
+      `
+    }
+    if (effect === 'aura') {
+      return `
+        <div style="position:absolute;inset:-15px;border-radius:50%;border:2px solid rgba(139,92,246,0.6);animation:aura1 2s infinite;pointer-events:none;"></div>
+        <div style="position:absolute;inset:-28px;border-radius:50%;border:2px solid rgba(139,92,246,0.4);animation:aura2 2s infinite 0.5s;pointer-events:none;"></div>
+        <div style="position:absolute;inset:-41px;border-radius:50%;border:2px solid rgba(139,92,246,0.2);animation:aura3 2s infinite 1s;pointer-events:none;"></div>
+      `
+    }
+    return ''
   }
 
   useEffect(() => {
@@ -243,49 +328,22 @@ export default function MapView({ activities, userLat, userLng, currentUserId, o
 
         const locationPhotos = photos[loc.name] || []
         const latestPhoto = locationPhotos[locationPhotos.length - 1]
+        const color = getEffectColor(loc.effect)
+        const emoji = getEffectEmoji(loc.effect)
+        const orbitHtml = getOrbitHtml(loc.effect)
 
         const photoHtml = latestPhoto
           ? `<img src="${latestPhoto.photo_url}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" />`
-          : `<div style="width:100%;height:100%;background:${loc.effect === 'sparkle' ? '#f59e0b' : loc.effect === 'aura' ? '#8b5cf6' : '#10b981'};border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:24px;">${loc.effect === 'sparkle' ? '🌟' : loc.effect === 'aura' ? '✨' : '📚'}</div>`
-
-        const sparkleHtml = loc.effect === 'sparkle' ? `
-          <div style="position:absolute;inset:-20px;pointer-events:none;">
-            <div style="position:absolute;top:0;left:50%;width:4px;height:4px;background:#fbbf24;border-radius:50%;animation:sparkle1 1.5s infinite;"></div>
-            <div style="position:absolute;top:20%;right:0;width:3px;height:3px;background:#fcd34d;border-radius:50%;animation:sparkle2 1.8s infinite;"></div>
-            <div style="position:absolute;bottom:0;left:30%;width:5px;height:5px;background:#f59e0b;border-radius:50%;animation:sparkle3 1.2s infinite;"></div>
-            <div style="position:absolute;top:40%;left:0;width:3px;height:3px;background:#fbbf24;border-radius:50%;animation:sparkle4 2s infinite;"></div>
-            <div style="position:absolute;bottom:20%;right:10%;width:4px;height:4px;background:#fcd34d;border-radius:50%;animation:sparkle1 1.6s infinite 0.3s;"></div>
-            <div style="position:absolute;top:10%;left:20%;width:6px;height:6px;background:#f59e0b;border-radius:50%;animation:sparkle2 1.4s infinite 0.5s;"></div>
-          </div>
-        ` : ''
-
-        const auraHtml = loc.effect === 'aura' ? `
-          <div style="position:absolute;inset:-15px;border-radius:50%;border:2px solid rgba(139,92,246,0.6);animation:aura1 2s infinite;pointer-events:none;"></div>
-          <div style="position:absolute;inset:-28px;border-radius:50%;border:2px solid rgba(139,92,246,0.4);animation:aura2 2s infinite 0.5s;pointer-events:none;"></div>
-          <div style="position:absolute;inset:-41px;border-radius:50%;border:2px solid rgba(139,92,246,0.2);animation:aura3 2s infinite 1s;pointer-events:none;"></div>
-        ` : ''
-
-        const studyHtml = loc.effect === 'study' ? `
-          <div style="position:absolute;inset:-20px;pointer-events:none;">
-            <div style="position:absolute;top:50%;left:50%;font-size:14px;animation:orbit1 4s linear infinite;transform-origin:0 0;">📚</div>
-            <div style="position:absolute;top:50%;left:50%;font-size:12px;animation:orbit2 4s linear infinite 1.3s;transform-origin:0 0;">✏️</div>
-            <div style="position:absolute;top:50%;left:50%;font-size:12px;animation:orbit3 4s linear infinite 2.6s;transform-origin:0 0;">💡</div>
-          </div>
-        ` : ''
-
-        const borderColor = loc.effect === 'sparkle' ? '#fbbf24' : loc.effect === 'aura' ? '#8b5cf6' : '#10b981'
-        const glowColor = loc.effect === 'sparkle' ? 'rgba(251,191,36,0.8)' : loc.effect === 'aura' ? 'rgba(139,92,246,0.8)' : 'rgba(16,185,129,0.8)'
+          : `<div style="width:100%;height:100%;background:${color};border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:24px;">${emoji}</div>`
 
         const icon = L.divIcon({
           html: `
             <div style="position:relative;display:flex;align-items:center;justify-content:center;width:60px;height:60px;">
-              ${sparkleHtml}
-              ${auraHtml}
-              ${studyHtml}
-              <div style="width:56px;height:56px;border-radius:50%;overflow:hidden;border:3px solid ${borderColor};box-shadow:0 0 16px ${glowColor};cursor:pointer;position:relative;z-index:2;">
+              ${orbitHtml}
+              <div style="width:56px;height:56px;border-radius:50%;overflow:hidden;border:3px solid ${color};box-shadow:0 0 16px ${color}80;cursor:pointer;position:relative;z-index:2;">
                 ${photoHtml}
               </div>
-              <div style="position:absolute;bottom:-20px;left:50%;transform:translateX(-50%);background:${borderColor};color:white;font-size:9px;font-weight:700;padding:2px 6px;border-radius:8px;white-space:nowrap;">${loc.name}</div>
+              <div style="position:absolute;bottom:-20px;left:50%;transform:translateX(-50%);background:${color};color:white;font-size:9px;font-weight:700;padding:2px 6px;border-radius:8px;white-space:nowrap;">${loc.name}</div>
             </div>
             <style>
               @keyframes sparkle1{0%,100%{transform:translate(0,0) scale(1);opacity:1}50%{transform:translate(-8px,-12px) scale(1.5);opacity:0.3}}
@@ -332,15 +390,11 @@ export default function MapView({ activities, userLat, userLng, currentUserId, o
           >
             <div style={{
               padding: '16px 20px',
-              background: selectedLocation.effect === 'sparkle'
-                ? 'linear-gradient(135deg, #fbbf24, #f59e0b)'
-                : selectedLocation.effect === 'aura'
-                ? 'linear-gradient(135deg, #8b5cf6, #6d28d9)'
-                : 'linear-gradient(135deg, #10b981, #059669)',
+              background: `linear-gradient(135deg, ${getEffectColor(selectedLocation.effect)}, ${getEffectColor(selectedLocation.effect)}99)`,
               color: 'white',
             }}>
               <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>
-                {selectedLocation.effect === 'sparkle' ? '🌟' : selectedLocation.effect === 'aura' ? '✨' : '📚'} {selectedLocation.name}
+                {getEffectEmoji(selectedLocation.effect)} {selectedLocation.name}
               </h3>
             </div>
 
@@ -350,11 +404,15 @@ export default function MapView({ activities, userLat, userLng, currentUserId, o
               ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                   {(photos[selectedLocation.name] || []).map((photo) => (
-                    <img
-                      key={photo.id}
-                      src={photo.photo_url}
-                      style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: 8 }}
-                    />
+                    <div key={photo.id}>
+                      <img
+                        src={photo.photo_url}
+                        style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: 8 }}
+                      />
+                      <p style={{ margin: '4px 0 0', fontSize: 11, color: '#666', textAlign: 'center' }}>
+                        {photo.profiles?.nickname || '名無し'}
+                      </p>
+                    </div>
                   ))}
                 </div>
               )}
@@ -366,7 +424,7 @@ export default function MapView({ activities, userLat, userLng, currentUserId, o
                   <div>
                     <input
                       type="file"
-                      accept="image/*" capture="environment"
+                      accept="image/*"
                       onChange={(e) => {
                         const file = e.target.files?.[0]
                         if (file) handleUpload(file, selectedLocation)
@@ -389,7 +447,7 @@ export default function MapView({ activities, userLat, userLng, currentUserId, o
                     onClick={() => setShowUploadForLocation(selectedLocation.id)}
                     style={{
                       width: '100%', padding: 12, borderRadius: 10, border: 'none',
-                      background: selectedLocation.effect === 'sparkle' ? '#fbbf24' : selectedLocation.effect === 'aura' ? '#8b5cf6' : '#10b981',
+                      background: getEffectColor(selectedLocation.effect),
                       color: 'white', fontWeight: 700, cursor: 'pointer', fontSize: 15,
                     }}
                   >
